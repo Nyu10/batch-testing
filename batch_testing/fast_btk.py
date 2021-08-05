@@ -6,7 +6,7 @@ from sklearn.metrics import precision_score, recall_score, f1_score
 from scipy.optimize import fsolve
 import numba
 from numba import njit,jit
-
+#
 @jit(parallel = True)
 def conventional_test(subject_array, typeII_error, typeI_error, repeat = 1,
 seq = True):
@@ -118,6 +118,7 @@ def infection_rate_on_negative_batch(p,batch_size,typeII_error, typeI_error):
     """
     q = 1-p
     r = typeII_error * (1 - q ** batch_size)/((1 - typeI_error) * q ** batch_size + typeII_error *(1 - q**batch_size))
+    print(p*r/(1-q**batch_size))
     return p*r/(1-q**batch_size)
 
 
@@ -159,6 +160,7 @@ def one_batch_test_solver(prevalence_rate,typeII_error, typeI_error,n_initial_gu
     """
     q = 1- prevalence_rate # To consistent with the notation of our document
     func = lambda n : n*q**(n/2) - (-(1-typeII_error - typeI_error)*np.log(q))**(-1/2)
+    # print(func(n_initial_guess))
     n_solution = fsolve(func, n_initial_guess)
     
     return float(n_solution)
@@ -305,8 +307,8 @@ prob_threshold = 1, seq = True, batch_limit = 32):
 
     """
     temp_list = []
-    neg_list = []
-    pos_list = []
+    neg_list = [] #renamed to negativeInfoList
+    pos_list = [] #renamed to positiveInfoList
     consum = 0
     temp = {'data': subject_array,
            'NB_Num': 0,
@@ -315,8 +317,8 @@ prob_threshold = 1, seq = True, batch_limit = 32):
            'batch_size': batch_size}
     temp_list.append(temp)
     new_list = []
-    neg_array = []
-    pos_array = []
+    neg_array = [] #renamed to negativeBatches
+    pos_array = [] #renamed to positiveBatches
     while len(temp_list) > 0:
         for i in temp_list:
             temp0, temp1, temp_con, p0, p1, n0, n1 = helpfunction(i['data'], i['p'], i['batch_size'],
