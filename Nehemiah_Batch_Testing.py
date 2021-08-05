@@ -1,6 +1,7 @@
 import numpy as np
+import pandas as pd
 from scipy.optimize import fsolve
-
+from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
 
 class ConstantValues:
     def __init__(self, typeIIError, typeIError, batchLimit):
@@ -17,18 +18,18 @@ def setupConstants(typeIIError, typeIError, batchLimit):
 # Note: default RNG is new way of getting random numbers by Numpy: "New code should use the binomial method of a default_rng() instance instead; please see the Quick Start." https://numpy.org/doc/stable/reference/random/generated/numpy.random.binomial.html
 
 
-def setupPopulation(populationSize, p):
+def setupPopulation(iterations, p):
     """
     Input:
-        populationSize (int): the size of population
+        iterations (int): the size of population
         p (float): the infection rate
     Output:
         populationArray (array): 2d array where the first column is for id and the second column
         is the condition, where 1 stands for infection and 0 stands for uninfection
     """
-    idArray = np.arange(populationSize)  # idArray is the id of each person
+    idArray = np.arange(iterations)  # idArray is the id of each person
     # randomTable is the random number for each person, 1 stands for infected and 0 stands for uninfected
-    randomTable = np.random.default_rng().binomial(n=1, p=p, size=populationSize)
+    randomTable = np.random.default_rng().binomial(n=1, p=p, size=iterations)
     # combines ID array and Infection Array
     populationArray = (np.column_stack((idArray, randomTable)))
     return populationArray
@@ -79,15 +80,16 @@ def sequentialTesting(populationArray, stopRule, p, batchSize, Constants, seqRep
         stopRule (int): the number of postive batches to enter individual testing
         p (float): infection rate
         batchSize (int): batch size
-        Constants (ConstantValues Object): 
+        Constants (ConstantValues Object):
             typeIIError (float): probability of type II error
-            typeIError (float): probability of type I error 
+            typeIError (float): probability of type I error
             batchLimit (int): the max size the batch can be
-        seqRepeat (int): the number of repetitions
+        seqRepeat (int): the number of repetitions for sequential testing
         threshold (float): if the infection rate of a batch is beyond threshold, the subjects on that batch will enter individual testing phase
-        sequential (boolean): True stands for sequential testing. The test will end when the test result is positive or past the number of repetition. False stands for simutanlous testing with majority voting.
+        sequential (boolean): True stands for sequential testing. The test will end when the test result is positive or past the number of repetition. 
+        False stands for simutanlous testing with majority voting.
     Output:
-        result (Numpy Array): an array contains subjects' id and test results
+        testResults (Numpy Array): an array contains subjects' id and test results
         totalTestConsumption (int): the total test consumption
         individualTestConsumption (int): the test consumption for individual testings
 
@@ -142,12 +144,80 @@ def sequentialTesting(populationArray, stopRule, p, batchSize, Constants, seqRep
     for i in negativeInfoList:
         negativeBatches.append(i['populationSubset'])
     negativeBatches = np.concatenate(negativeBatches)
-    print(negativeBatches)
     for i in positiveInfoList:
         positiveBatches.append(i['populationSubset'])
     positiveBatches = np.concatenate(positiveBatches)
+    # I think you set to 0 because the test will assume everyone here is negative
+    negativeBatches[:, 1] = 0
+    positiveBatches, individualTestConsumption = conventionalTest(positiveBatches, Constants, seqRepeat)
+    totalTestConsumption += individualTestConsumption
+    testResults = np.concatenate((positiveBatches,negativeBatches))
+    #sorts testResults by ID
+    testResults = testResults[testResults[:,0].argsort()]
+    testResults = testResults.astype('int64')
+    return testResults, totalTestConsumption, individualTestConsumption
 
+def conventionalTest(populationArray, Constants, seqRepeat=1, sequential=True):
+    """
+    A function gives the test results to a subject array given the probability of
+    type II error, the probability of Type I error, and the number of repeatition,
+    and setting of sequence testing or not.
 
+    Input:
+        populationArray(Numpy Array): an array contains subject id and subject's
+        condition (1 stands for infection and 0 stands for uninfection)
+        Constants (ConstantValues Object): 
+            typeIIError (float): probability of type II error
+            typeIError (float): probability of type I error 
+            batchLimit (int): the max size the batch can be
+        seqRepeat (int): the number of repetitions
+       sequential (boolean): True stands for sequential testing. The test will end when the test result is positive or past the number of repetition. False stands for simutanlous testing with majority voting.
+
+    Output:
+        testResults (Numpy Array): a Numpy array containining subjects' id and test results
+        totalTestConsum (int) : the total test consumption
+    """
+    testResults = np.zeros(populationArray.shape, dtype=np.int)
+    randomTable = np.random.uniform(0, 1, (populationArray.shape[0],seqRepeat))
+    #sequential testing, end testing when the test result is positive or past the number of repetitions
+    if sequential == True:
+        totalTestConsumption = 0
+        for i in range(len(populationArray)):
+            testResult = 0
+            counter = 0
+            individual = populationArray[i,1]
+            while counter < seqRepeat and testResult == 0:
+                randomNum = randomTable[i,counter]
+                totalTestConsumption += 1
+                #individual is positive
+                if individual == 1:
+                    testResult = 1 if randomNum > Constants.typeIIError else 0
+                #individual is negative
+                else:
+                    testResult = 1 if randomNum < Constants.typeIError else 0
+                counter += 1
+            #individual id    
+            testResults[i, 0] = populationArray[i, 0]
+            #test result
+            testResults[i, 1] = testResult
+    #simutaneously testing, test all repetitions at once
+    else:
+        for i in range(len(populationArray)):
+            totalPositives = 0
+            for j in range(seqRepeat):
+                randomNum = randomTable[i,j]
+                if populationArray[i,1] == 1:
+                    testResult = 1 if randomNum > Constants.typeIIError else 0
+                else:
+                    testResult = 1 if randomNum < Constants.typeIError else 0
+                totalPositives += testResult
+            testResults[i, 0] = populationArray[i, 0]
+            if totalPositives >= seqRepeat/2:
+                testResults[i, 1] = 1
+            else:
+                testResults[i, 1] = 0
+            totalTestConsumption = len(populationArray) * seqRepeat
+    return testResults, totalTestConsumption
 def helperFunction(populationArray, p, batchSize, Constants):
     """
     The helperfunction is a handy function to give the list of subjects on the
@@ -190,9 +260,8 @@ def helperFunction(populationArray, p, batchSize, Constants):
 
 def batchSplit(populationArray, batchSize, Constants):
     """
-    A function gives a list of sujects on the negative batch(es),
-    a list of subjects on the postive batch(es) and the test-kit 
-    consumption given the probability of type II error, the 
+    A function that splits the Population into two batches, negative or positive with the test-kit 
+    consumption given the probability of type II error and the 
     probability of Type I error.
 
     Input:
@@ -276,3 +345,65 @@ def infectionRatePositiveBatch(p, batchSize, Constants):
     r = (1 - Constants.typeIIError) * (1 - q ** batchSize)/(Constants.typeIError *
                                                             q ** batchSize + (1 - Constants.typeIIError) * (1 - q**batchSize))
     return p*r/(1 - q**batchSize)
+
+def resultsToDataFrame(populationArrayIterations, **kwargs):
+    """
+    a helper function provides convenient results for a sequential testing, returns a dataframe with 
+    accuracy, sensitivity, specificity, PPV, NPV, totalTestConsumption, individualTestConsumption, and batchTestConsumption
+
+    Input:
+        populationArray(Numpy Array): an array contains subject id and subject's
+        condition (1 stands for infection and 0 stands for uninfection)
+    Output:
+        result (DataFrame): a dataframe contains important evaluation metrics for the test method 
+    """
+    iterations= len(populationArrayIterations)
+    accuracy = np.zeros(iterations)
+    sensitivity = np.zeros(iterations)
+    specificity = np.zeros(iterations)
+    #positive predictive value
+    ppv = np.zeros(iterations)
+    #negative predictive value
+    npv = np.zeros(iterations)
+    totalTestConsumption = np.zeros(iterations)
+    individualTestConsumption = np.zeros(iterations)
+    batchTestConsumption = np.zeros(iterations)
+    for i in range(iterations):
+        testResultsArray, totalTestConsumption[i], individualTestConsumption[i] = sequentialTesting(populationArrayIterations[i], **kwargs)
+        testing = testResultsArray[:,1]
+        reality = populationArrayIterations[i][:,1]
+        accuracy[i] = np.mean(reality == testing)
+        sensitivity[i] = recall_score(reality, testing)
+        specificity[i] = specificity_score(reality, testing)
+        ppv[i] = precision_score(reality, testing)
+        npv[i] = npv_score(reality, testing)
+        batchTestConsumption = totalTestConsumption[i] - individualTestConsumption[i]
+        
+        result = {'accuracy': accuracy,
+        'sensitivity': sensitivity,
+        'specificity': specificity,
+        'PPV': ppv,
+        'NPV': npv,
+        'totalTestConsumption': totalTestConsumption,
+        'individualTestConsumption': individualTestConsumption,
+        'batchTestConsumption': batchTestConsumption
+        }
+    return pd.DataFrame(result)
+
+
+#statistic metrics (I didn't edit the code because I'ma just assume this is a math equation)
+def specificity_score(y_true, y_pred):
+    """
+    A function provides specificty given the prediction and the truth 
+    """
+    tn, fp, _, _ = confusion_matrix(y_true = y_true,
+    y_pred = y_pred).ravel()
+    return tn/(tn + fp)
+
+def npv_score(y_true, y_pred):
+    """
+    A function provides npv given the prediction and the truth 
+    """
+    tn, _, fn, _ = confusion_matrix(y_true = y_true,
+    y_pred = y_pred).ravel()
+    return tn/(tn + fn)

@@ -37,7 +37,7 @@ seq = True):
     if seq == True:
         consum = 0
         
-        test_result = np.zeros(subject_array.shape, dtype = np.int)
+        test_result = np.zeros(subject_array.shape, dtype = int)
         
         random_table = np.random.uniform(0, 1, (subject_array.shape[0], repeat))
         for i in range(len(subject_array)):
@@ -61,7 +61,7 @@ seq = True):
     
     # Simultanous Testing    
     else:       
-        test_result = np.zeros(subject_array.shape, dtype = np.int)
+        test_result = np.zeros(subject_array.shape, dtype = int)
         
 
         random_table = np.random.uniform(0, 1, (subject_array.shape[0], repeat))
@@ -83,7 +83,7 @@ seq = True):
 
 @njit(parallel = True)
 def parallel_test(subject_array, typeII_error, typeI_error, num):
-    test_result = np.zeros(subject_array.shape, dtype = np.int)
+    test_result = np.zeros(subject_array.shape, dtype = int)
     random_table = np.random.uniform(0, 1, (subject_array.shape[0], num))
     for i in range(len(subject_array)):
         subject = subject_array[i, 1]
@@ -118,7 +118,6 @@ def infection_rate_on_negative_batch(p,batch_size,typeII_error, typeI_error):
     """
     q = 1-p
     r = typeII_error * (1 - q ** batch_size)/((1 - typeI_error) * q ** batch_size + typeII_error *(1 - q**batch_size))
-    print(p*r/(1-q**batch_size))
     return p*r/(1-q**batch_size)
 
 
@@ -395,7 +394,7 @@ def data_gen(size, p):
     """
     #print(np.random.get_state()[1][0])
     random_table = np.random.binomial(size = size, p = p, n = 1)
-    test_array = np.zeros((size, 2), dtype = np.int)
+    test_array = np.zeros((size, 2), dtype = int)
     for i in range(size):
         test_array[i,0] = i
         test_array[i,1] = random_table[i]
