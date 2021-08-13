@@ -49,19 +49,19 @@ for i in range(100):
     two_test_list.append(num_of_two_test)
 
 #average of 100 simulations of number of individuals who took one test
-print("number of individuals who took one test")
-print (sum(one_test_list)/len(one_test_list))
+print("Number of Batch Tests: " +str(population/batch_size) )
+
 
 # print("Standard Deviation of number of individuals who took one test")
 # print(statistics.pstdev(one_test_list))
 #average of 100 simulations of number of individuals who took two tests
-print("number of individuals who took two tests")
-print(sum(two_test_list)/len(two_test_list))
+print("Number of Individual Tests (2nd Stage Batch Testing): " +str( two_test_list[0]))
 # print("Standard Deviation of number of individuals who took two tests")
 # print(statistics.pstdev(two_test_list))
 
-total_tests = (num_of_one_test/10)+ (num_of_two_test)
-print("Number of Total Tests with Dorman: "+ str(total_tests))
+total_tests = (population/10)+ (two_test_list[0])
+print("Number of Total Tests in Batch Testing: "+ str(total_tests))
 
 print("Number of Total Individual Tests: " + str(population))
 
+print()
